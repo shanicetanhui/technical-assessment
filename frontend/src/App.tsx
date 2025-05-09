@@ -7,13 +7,14 @@ function App() {
   const [data, setData] = useState<any[]>([]);
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState("");
-  const [total, setTotal] = useState(0);
+  const [total, setTotalRows] = useState(0);
 
+  // Fetch Data from server with pagination
   const fetchData = useCallback(async (pageNum = page) => {
     const res = await fetch(`/data?page=${pageNum}`);
     const result = await res.json();
     setData(result.data);
-    setTotal(result.total);
+    setTotalRows(result.total);
     setPage(pageNum);
   }, [page]);
 
@@ -21,6 +22,7 @@ function App() {
     fetchData();
   }, [fetchData]);
 
+  // Handle CSV file upload
   const upload = async () => {
     if (!file) return;
     const formData = new FormData();
@@ -34,14 +36,16 @@ function App() {
     fetchData(1);
   };
 
+  // Handle search bar
   const search = async () => {
     const res = await fetch(`/search?q=${query}`);
     const result = await res.json();
     setData(result);
-    setTotal(result.length);
+    setTotalRows(result.length);
     setPage(1);
-  };  
+  };
 
+  // Pagination navigation
   const canGoNext = data.length > 0 && page * 10 < total;
   const canGoPrev = page > 1;
 
@@ -66,6 +70,7 @@ function App() {
       <button disabled={!canGoPrev} onClick={() => fetchData(page - 1)}>Prev</button>
       <button disabled={!canGoNext} onClick={() => fetchData(page + 1)}>Next</button>
 
+      {/* Data table */}
       <table>
         <thead>
           <tr>

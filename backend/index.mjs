@@ -9,7 +9,7 @@ let dataStore = [];
 const server = http.createServer((req, res) => {
   const parsedUrl = parse(req.url, true);
 
-  // 📤 Handle CSV Upload
+  // CSV File Upload 
   if (req.method === "POST" && req.url === "/upload") {
     console.log("Received upload");
 
@@ -17,17 +17,19 @@ const server = http.createServer((req, res) => {
     let filePath = "";
 
     busboy.on("file", (fieldname, file, filename) => {
-      filePath = `./uploads/${Date.now()}-${filename}`;
+      filePath = `./uploads/${Date.now()}-${filename}`; // Unique file path 
       const stream = fs.createWriteStream(filePath);
       file.pipe(stream);
 
       file.on("end", () => {
         const results = [];
-      
+        
+        // Parse CSV file
         fs.createReadStream(filePath)
-          .pipe(csv({ mapHeaders: ({ header }) => header.trim().toLowerCase() }))
+          .pipe(csv({ mapHeaders: ({ header }) => header.trim().toLowerCase() })) // Normalise headers to lowercase
           .on("data", (row) => {
-          
+
+            // Store data as objects
             results.push({
               //postid: row["postid"] || row["postId"] || "",
               id: row["id"] || "",
@@ -36,7 +38,7 @@ const server = http.createServer((req, res) => {
               body: row["body"] || ""
             });
           })
-          
+
           .on("end", () => {
             dataStore = results;
             fs.unlinkSync(filePath);
@@ -45,16 +47,17 @@ const server = http.createServer((req, res) => {
             res.end(JSON.stringify({ message: "Upload complete", count: results.length }));
           });
       });
-      
+
     });
 
     req.pipe(busboy);
     return;
   }
 
+  // Serve paginated data
   if (req.method === "GET" && parsedUrl.pathname === "/data") {
     const page = parseInt(parsedUrl.query.page || "1");
-    const size = 10;
+    const size = 10; // no. of rows displayed
     const start = (page - 1) * size;
     const paginated = dataStore.slice(start, start + size);
 
@@ -63,6 +66,7 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Search
   if (req.method === "GET" && parsedUrl.pathname === "/search") {
     const q = (parsedUrl.query.q || "").toLowerCase();
     const filtered = dataStore.filter((row) =>
@@ -70,7 +74,7 @@ const server = http.createServer((req, res) => {
         value.toLowerCase().includes(q)
       )
     );
-  
+
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify(filtered));
     return;
@@ -81,5 +85,5 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(4000, () => {
-  console.log("✅ Server running at http://localhost:4000");
+  console.log("Server running at http://localhost:4000");
 });
