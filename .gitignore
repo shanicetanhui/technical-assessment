@@ -1,11 +1,4 @@
-# Root .gitignore
-
-# Ignore any node_modules anywhere
 node_modules/
-
-# Ignore lowdb’s runtime file and uploads
 backend/db.json
 backend/uploads/
-
-# If you don’t want to track tests right now
 backend/tests/

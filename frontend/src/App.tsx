@@ -3,74 +3,131 @@ import React from "react";
 import './App.css';
 
 function App() {
-  const [file, setFile] = useState<File | null>(null);
-  const [data, setData] = useState<any[]>([]);
-  const [page, setPage] = useState(1);
-  const [query, setQuery] = useState("");
-  const [total, setTotalRows] = useState(0);
+  const [file,    setFile]    = useState<File | null>(null);
+  const [data,    setData]    = useState<any[]>([]);
+  const [page,    setPage]    = useState(1);
+  const [query,   setQuery]   = useState("");
+  const [total,   setTotal]   = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error,   setError]   = useState<string | null>(null);
 
-  // Fetch Data from server with pagination
-  const fetchData = useCallback(async (pageNum = page) => {
-    const res = await fetch(`/data?page=${pageNum}`);
-    const result = await res.json();
-    setData(result.data);
-    setTotalRows(result.total);
-    setPage(pageNum);
-  }, [page]);
+  // Fetch with loading+error handling
+  const fetchData = useCallback(
+    async (p = 1) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch(`/data?page=${p}`);
+        if (!res.ok) throw new Error(`Fetch failed (${res.status})`);
+        const json = await res.json();
+        setData(json.data);
+        setTotal(json.total);
+        setPage(p);
+      } catch (e: any) {
+        setError(e.message);
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
 
   useEffect(() => {
-    fetchData();
+    fetchData(1);
   }, [fetchData]);
 
-  // Handle CSV file upload
+  // Upload with validation + loading/error
   const upload = async () => {
-    if (!file) return;
-    const formData = new FormData();
-    formData.append("file", file);
+    if (!file) {
+      setError("Please select a file first.");
+      return;
+    }
+    if (!file.name.toLowerCase().endsWith(".csv")) {
+      setError("Only .csv files are allowed.");
+      return;
+    }
 
-    await fetch("/upload", {
-      method: "POST",
-      body: formData,
-    });
-
-    fetchData(1);
+    setLoading(true);
+    setError(null);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/upload", { method: "POST", body: form });
+      if (!res.ok) throw new Error(`Upload failed (${res.status})`);
+      await fetchData(1);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Handle search bar
+  // Search with loading+error too
   const search = async () => {
-    const res = await fetch(`/search?q=${query}`);
-    const result = await res.json();
-    setData(result);
-    setTotalRows(result.length);
-    setPage(1);
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/search?q=${encodeURIComponent(query)}`);
+      if (!res.ok) throw new Error(`Search failed (${res.status})`);
+      const json = await res.json();
+      setData(json);
+      setTotal(json.length);
+      setPage(1);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Pagination navigation
-  const canGoNext = data.length > 0 && page * 10 < total;
-  const canGoPrev = page > 1;
+  const canPrev = !loading && page > 1;
+  const canNext = !loading && page * 10 < total;
 
   return (
     <div className="container">
       <h2>CSV Uploader</h2>
 
-      <input type="file" onChange={(e) => setFile(e.target.files?.[0] || null)} />
-      <button onClick={upload}>Upload</button>
+      {/* Error banner */}
+      {error && <div className="error">{error}</div>}
 
-      <br /><br />
+      {/* Loading spinner */}
+      {loading && <div className="loading">Loading…</div>}
 
-      <input
-        type="text"
-        value={query}
-        placeholder="Search by name"
-        onChange={(e) => setQuery(e.target.value)}
-      />
-      <button onClick={search}>Search</button>
+      <div className="upload-section">
+        <input
+          type="file"
+          accept=".csv"
+          disabled={loading}
+          onChange={(e) => setFile(e.target.files?.[0] || null)}
+        />
+        <button onClick={upload} disabled={loading || !file}>
+          Upload
+        </button>
+      </div>
 
-      <br /><br />
-      <button disabled={!canGoPrev} onClick={() => fetchData(page - 1)}>Prev</button>
-      <button disabled={!canGoNext} onClick={() => fetchData(page + 1)}>Next</button>
+      <div className="search-section">
+        <input
+          type="text"
+          value={query}
+          disabled={loading}
+          placeholder="Search by name"
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        <button onClick={search} disabled={loading || !query.trim()}>
+          Search
+        </button>
+      </div>
 
-      {/* Data table */}
+      <div className="pagination">
+        <button onClick={() => fetchData(page - 1)} disabled={!canPrev}>
+          Prev
+        </button>
+        <span>Page {page}</span>
+        <button onClick={() => fetchData(page + 1)} disabled={!canNext}>
+          Next
+        </button>
+      </div>
+
       <table>
         <thead>
           <tr>
@@ -92,10 +149,7 @@ function App() {
         </tbody>
       </table>
 
-
-      {data.length === 0 && (
-        <p>No more data available</p>
-      )}
+      {!loading && data.length === 0 && <p>No data available.</p>}
     </div>
   );
 }
