@@ -1,89 +1,90 @@
-import http from "http";
-import Busboy from "busboy";
-import fs from "fs";
-import csv from "csv-parser";
-import { parse } from "url";
+// index.mjs
+import http      from 'http';
+import Busboy    from 'busboy';
+import fs        from 'fs';
+import path      from 'path';
+import csvParser from 'csv-parser';
+import { parse } from 'url';
+import { Low }       from 'lowdb';
+import { JSONFile }  from 'lowdb/node';
 
-let dataStore = [];
+const DB_FILE = path.resolve('.', 'db.json');
+const adapter     = new JSONFile(DB_FILE);
+const defaultData = { rows: [] };
+const db          = new Low(adapter, defaultData);
 
-const server = http.createServer((req, res) => {
-  const parsedUrl = parse(req.url, true);
+(async () => {
 
-  // CSV File Upload 
-  if (req.method === "POST" && req.url === "/upload") {
-    console.log("Received upload");
+  await db.read();
+  db.data ||= { rows: [] };
+  await db.write();
 
-    const busboy = Busboy({ headers: req.headers });
-    let filePath = "";
+  const UPLOAD_DIR = path.resolve('.', 'uploads');
+  if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR);
 
-    busboy.on("file", (fieldname, file, filename) => {
-      filePath = `./uploads/${Date.now()}-${filename}`; // Unique file path 
-      const stream = fs.createWriteStream(filePath);
-      file.pipe(stream);
+  const server = http.createServer((req, res) => {
+    const { pathname, query } = parse(req.url||'', true);
 
-      file.on("end", () => {
-        const results = [];
-        
-        // Parse CSV file
-        fs.createReadStream(filePath)
-          .pipe(csv({ mapHeaders: ({ header }) => header.trim().toLowerCase() })) // Normalise headers to lowercase
-          .on("data", (row) => {
+    // Upload CSV 
+    if (req.method === 'POST' && pathname === '/upload') {
+      const bb = Busboy({ headers: req.headers });
+      let tmpPath;
 
-            // Store data as objects
-            results.push({
-              //postid: row["postid"] || row["postId"] || "",
-              id: row["id"] || "",
-              name: row["name"] || "",
-              email: row["email"] || "",
-              body: row["body"] || ""
-            });
+      bb.on('file', (_f, file, name) => {
+        tmpPath = path.join(UPLOAD_DIR, `${Date.now()}-${name}`);
+        file.pipe(fs.createWriteStream(tmpPath));
+      });
+
+      bb.on('finish', () => {
+        const rows = [];
+        fs.createReadStream(tmpPath)
+          .pipe(csvParser({ mapHeaders: ({ header }) => header.trim().toLowerCase() }))
+          .on('data', r => {
+            if (r.id && r.name && r.email) {
+              rows.push({ id: r.id, name: r.name, email: r.email, body: r.body||'' });
+            }
           })
-
-          .on("end", () => {
-            dataStore = results;
-            fs.unlinkSync(filePath);
-            console.log(`Parsed ${results.length} rows`);
-            res.writeHead(200, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ message: "Upload complete", count: results.length }));
+          .on('end', async () => {
+            fs.unlinkSync(tmpPath);
+            db.data.rows = rows;
+            await db.write();
+            res.writeHead(200, {'Content-Type':'application/json'});
+            res.end(JSON.stringify({ message:'Upload complete', count:rows.length }));
           });
       });
 
-    });
+      return req.pipe(bb);
+    }
 
-    req.pipe(busboy);
-    return;
-  }
+    // Paginated fetch
+    if (req.method === 'GET' && pathname === '/data') {
+      const page  = Math.max(1, parseInt(query.page||'1',10));
+      const size  = 10;
+      const start = (page-1)*size;
+      const slice = db.data.rows.slice(start, start+size);
+      res.writeHead(200, {'Content-Type':'application/json'});
+      return res.end(JSON.stringify({ data: slice, page, total: db.data.rows.length }));
+    }
 
-  // Serve paginated data
-  if (req.method === "GET" && parsedUrl.pathname === "/data") {
-    const page = parseInt(parsedUrl.query.page || "1");
-    const size = 10; // no. of rows displayed
-    const start = (page - 1) * size;
-    const paginated = dataStore.slice(start, start + size);
+    // Search 
+    if (req.method === 'GET' && pathname === '/search') {
+      const q = (query.q||'').toLowerCase();
+      const filtered = db.data.rows.filter(r =>
+        r.id.includes(q) ||
+        r.name.toLowerCase().includes(q) ||
+        r.email.toLowerCase().includes(q) ||
+        r.body.toLowerCase().includes(q)
+      );
+      res.writeHead(200, {'Content-Type':'application/json'});
+      return res.end(JSON.stringify(filtered));
+    }
 
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ data: paginated, page, total: dataStore.length }));
-    return;
-  }
 
-  // Search
-  if (req.method === "GET" && parsedUrl.pathname === "/search") {
-    const q = (parsedUrl.query.q || "").toLowerCase();
-    const filtered = dataStore.filter((row) =>
-      Object.values(row).some((value) =>
-        value.toLowerCase().includes(q)
-      )
-    );
+    res.writeHead(404);
+    res.end('Not Found');
+  });
 
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify(filtered));
-    return;
-  }
-
-  res.writeHead(404);
-  res.end("Not Found");
-});
-
-server.listen(4000, () => {
-  console.log("Server running at http://localhost:4000");
-});
+  server.listen(4000, () => {
+    console.log('Server running at http://localhost:4000');
+  });
+})();

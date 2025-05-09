@@ -1,28 +1,18 @@
 services:
   backend:
-    build:
-      context: ./backend
+    build: ./backend
     ports:
       - "4000:4000"
     volumes:
-      - ./backend:/app
+      - ./backend/data.db:/app/data.db
       - ./backend/uploads:/app/uploads
-    networks:
-      - app-network
 
   frontend:
-    build:
-      context: ./frontend
+    build: ./frontend
+    depends_on:
+      - backend
+    environment:
+      # make CRA listen on 0.0.0.0 instead of localhost
+      - HOST=0.0.0.0
     ports:
       - "3000:3000"
-    volumes:
-      - ./frontend/src:/app/src
-    environment:
-      - CHOKIDAR_USEPOLLING=true
-    networks:
-      - app-network
-
-networks:
-  app-network:
-    driver: bridge
-
