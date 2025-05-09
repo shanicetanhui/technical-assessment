@@ -23,12 +23,20 @@ const server = http.createServer((req, res) => {
 
       file.on("end", () => {
         const results = [];
-
+      
         fs.createReadStream(filePath)
-          .pipe(csv())
+          .pipe(csv({ mapHeaders: ({ header }) => header.trim().toLowerCase() }))
           .on("data", (row) => {
-            if (row.name && row.email) results.push(row);
+          
+            results.push({
+              //postid: row["postid"] || row["postId"] || "",
+              id: row["id"] || "",
+              name: row["name"] || "",
+              email: row["email"] || "",
+              body: row["body"] || ""
+            });
           })
+          
           .on("end", () => {
             dataStore = results;
             fs.unlinkSync(filePath);
@@ -37,6 +45,7 @@ const server = http.createServer((req, res) => {
             res.end(JSON.stringify({ message: "Upload complete", count: results.length }));
           });
       });
+      
     });
 
     req.pipe(busboy);
@@ -54,13 +63,14 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // 🔍 Search
   if (req.method === "GET" && parsedUrl.pathname === "/search") {
     const q = (parsedUrl.query.q || "").toLowerCase();
     const filtered = dataStore.filter((row) =>
-      row.name?.toLowerCase().includes(q)
+      Object.values(row).some((value) =>
+        value.toLowerCase().includes(q)
+      )
     );
-
+  
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify(filtered));
     return;

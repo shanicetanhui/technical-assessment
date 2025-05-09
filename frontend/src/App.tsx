@@ -39,7 +39,8 @@ function App() {
     const result = await res.json();
     setData(result);
     setTotal(result.length);
-  };
+    setPage(1);
+  };  
 
   const canGoNext = data.length > 0 && page * 10 < total;
   const canGoPrev = page > 1;
@@ -67,14 +68,25 @@ function App() {
 
       <table>
         <thead>
-          <tr><th>Name</th><th>Email</th></tr>
+          <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Body</th>
+          </tr>
         </thead>
         <tbody>
           {data.map((row, i) => (
-            <tr key={i}><td>{row.name}</td><td>{row.email}</td></tr>
+            <tr key={i}>
+              <td>{row.id}</td>
+              <td>{row.name}</td>
+              <td>{row.email}</td>
+              <td>{row.body}</td>
+            </tr>
           ))}
         </tbody>
       </table>
+
 
       {data.length === 0 && (
         <p>No more data available</p>
