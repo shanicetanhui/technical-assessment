@@ -1,56 +1,43 @@
-# Technical Assessment Project
+# Technical Assessment
 
 A simple web application for uploading, displaying, and searching CSV data using a Node.js backend and a React frontend.
 
 ## Features
 
-* CSV File Upload
-* Full-Field Search
+* CSV file upload
+* Full‐field search
 * Pagination
 
 ## Getting Started
 
 ### Prerequisites
 
-* Node.js (v18+)
-* Docker (if using Docker Compose)
+* [Node.js](https://nodejs.org/) v18 or higher
+* [Docker](https://www.docker.com/) & [Docker Compose](https://docs.docker.com/compose/)
 
-### Installation
-
-1. Clone the repository:
+### Run with Docker Compose
 
 ```bash
-git clone <repository_url>
+docker-compose up --build
 ```
 
-2. Navigate to the project directory:
+* Backend → `http://localhost:4000`
+* Frontend → `http://localhost:3000`
 
-```bash
-cd technical-assessment
-```
+## Usage
 
-3. Install dependencies:
+1. Open your browser to **`http://localhost:3000`**.
+2. Click **Upload**, select a `.csv` file (columns: `id`, `name`, `email`, `body`).
+3. Use the **Search** box to filter results.
+4. Navigate pages with **Prev** / **Next**.
 
-```bash
-cd backend && npm install
-cd ../frontend && npm install
-```
+## Data Storage
 
+* Uploaded rows are persisted in a JSON file at `backend/db.json` via \[lowdb].
+* Raw CSVs are written temporarily to `backend/uploads/` and deleted after parsing.
+* Both `db.json` and `uploads/` are listed in `.gitignore`.
 
-### Running with Docker
+## Cleanup
 
-```bash
-docker compose up --build
-```
-
-### Usage
-
-* Visit `http://localhost:3000` to access the frontend.
-* Upload a CSV file.
-* Use the search box to find rows based on any field.
-* Use the pagination buttons to navigate.
-
-### Cleanup
-
-* Temporary uploaded files are stored in the `backend/uploads/` directory.
-
+* Temporary upload files are removed automatically.
+* To reset stored data entirely, delete `backend/db.json`.
